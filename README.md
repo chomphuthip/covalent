@@ -1,2 +1,2 @@
 # covalent
-An experimental learning platform.
+An experimental learning tool.
