@@ -250,8 +250,8 @@ let conceptsListView = (state) => h('div', {},  [
         }).map(concept => h('li', {onclick: [setFocusedConcept, concept.id]}, [
             h('a', { href: '/concept/' + concept.id}, [
                 text(concept.conceptName),
-                h('button', { onclick: [deleteConcept, { conceptId: concept.id }]}, text('Remove'))
-            ])
+            ]),
+            h('button', { onclick: [deleteConcept, { conceptId: concept.id }]}, text('Remove'))
         ]))
     ])
 ])
@@ -286,8 +286,8 @@ let defineView = (state, relationshipId) => h('div', {}, (() => {
                 name: 'definitionContent', 
                 id: 'defintionContent',
                 placeholder: 'New Definition...',
-                rows: 40,
-                columns: 40
+                rows: 100,
+                cols: 100
             }, text('')),
             h('input', {
                 name: 'confidence',
