@@ -1,8 +1,9 @@
 import { h, app, text } from 'https://unpkg.com/hyperapp'
-import page from 'https://unpkg.com/page/page.mjs'
+import router from 'https://unpkg.com/page/page.mjs'
 
 let createConceptInstance = (conceptName, conceptId) => ({
     id: conceptId,
+    priority: 3,
     conceptName: conceptName,
     relationshipIds: []
 })
@@ -46,6 +47,15 @@ let initConcept = (state, conceptId) => state.data.concepts.reduce((endState, ot
 
 let addDefintion = (state, { relationshipId, content, confidence }) => ({
     ...state,
+    current: {
+        ...state.current,
+        recentlyDefined: (() => {
+            console.log(state.current.recentlyDefined)
+            let n = state.current.recentlyDefined.concat(getRelationshipById(state, relationshipId).memberIds)
+            if(n.length > Math.floor(state.data.concepts.length / 2)) return n.slice(2)
+            return n
+        })()
+    },
     data: {
         ...state.data,
         relationships: state.data.relationships.map(relationship => {
@@ -81,29 +91,50 @@ let getRelationshipConfidence = (state, relationshipId) => {
     return total / getRelationshipById(state, relationshipId).definitionIds.length
 }
 
-let getConceptConfidence = (state, conceptId) => 
-    getConceptById(state, conceptId).relationshipIds.reduce((total, rId) => 
-    total + getRelationshipConfidence(state, rId), 0) /
-    getConceptById(state, conceptId).relationshipIds.length
-
-let getWeakestConceptId = (state) => {
-    return state.data.concepts.sort((conceptA, conceptB) => 
-    getConceptConfidence(state, conceptA.id) - getConceptConfidence(state, conceptB.id))[0].id
+let getConceptConfidence = (state, conceptId) => {
+    let concept = getConceptById(state, conceptId)
+    let total = concept.relationshipIds.reduce(
+        (total, rId) => 
+            total + getRelationshipConfidence(state, rId), 0)
+    return total / concept.relationshipIds.length || 50
 }
 
-let getWeakestRelationshipId = (state, conceptId, index = 0) => {
-    return getConceptById(state, conceptId).relationshipIds.sort((idA, idB) => 
-    getRelationshipConfidence(state, idB) - getRelationshipConfidence(state, idA))[index]
+let scoreConcept = (state, conceptId) => {
+    let concept = getConceptById(state, conceptId)
+    return 4 + concept.priority - concept
 }
 
-let getNextRelationshipToDefine = (state, conceptId) => {
-    return getWeakestRelationshipId(state, conceptId, 0)
+let getNewestDefintionId = (state, relationshipId) => {
+    let r = getRelationshipById(state, relationshipId)
+    return r.definitionIds.at(-1)
 }
+
+let getMostNeglectedRelationship = (state, conceptId) => {
+    let concept = getConceptById(state, conceptId)
+    return concept.relationshipIds.map(rid => {
+        if(getRelationshipById(state, rid).definitionIds.length === 0) return [0, rid]
+        let newestDef = getDefinitionById(state, getNewestDefintionId(state, rid))
+        return [newestDef.created, rid]
+    }).filter(tuple => {
+        let r = getRelationshipById(state, tuple[1])
+        return !state.current.recentlyDefined.some(e => r.memberIds.includes(e))
+    }).sort((tupleA, tupleB) => tupleA[0] - tupleB[0])[0][1]
+}
+
+let getNextRelationshipToDefine = (state) => {
+    return getMostNeglectedRelationship(state,
+    state.data.concepts.map(concept => [scoreConcept(state, concept.id), concept.id])
+        .sort((tupleA, tupleB) => tupleB[0] - tupleA[0])
+        .find(tuple => !state.current.recentlyDefined.includes(tuple[1]))[1])
+}
+
 
 let initialstate = {
     current: {
+        route: '/',
         focusedRelationshipId: -1,
-        focusedConceptId: -1
+        focusedConceptId: -1,
+        recentlyDefined: []
     },
     data: {
         ids: {
@@ -217,19 +248,25 @@ let conceptsListView = (state) => h('div', {},  [
         ...state.data.concepts.sort((a, b) => {
             return getConceptConfidence(state, b.id) - getConceptConfidence(state, a.id)
         }).map(concept => h('li', {onclick: [setFocusedConcept, concept.id]}, [
-            text(concept.conceptName),
-            h('button', { onclick: [deleteConcept, { conceptId: concept.id }]}, text('Remove'))
+            h('a', { href: '/concept/' + concept.id}, [
+                text(concept.conceptName),
+                h('button', { onclick: [deleteConcept, { conceptId: concept.id }]}, text('Remove'))
+            ])
         ]))
     ])
 ])
 
+let resetContent = (dispatch, props) => {
+    props.e.value = ''
+}
+
 let addDefintionFromForm = (state, e) => {
     let formData = new FormData(e.target)
-    return addDefintion(state, {
+    return [addDefintion(state, {
         relationshipId: parseInt(formData.get('relationshipId')),
         content: formData.get('definitionContent'),
         confidence: parseInt(formData.get('confidence'))
-    })
+    }), [resetContent, {e: e.target.firstChild}]]
 }
 
 let defineView = (state, relationshipId) => h('div', {}, (() => {
@@ -247,8 +284,9 @@ let defineView = (state, relationshipId) => h('div', {}, (() => {
         }, [
             h('textarea', { 
                 name: 'definitionContent', 
-                id: 'defintionContent'
-            }, text('New definition...')),
+                id: 'defintionContent',
+                placeholder: 'New Definition...'
+            }, text('')),
             h('input', {
                 name: 'confidence',
                 id: 'confidenceSlider',
@@ -271,13 +309,10 @@ let defineView = (state, relationshipId) => h('div', {}, (() => {
 })())
 
 let defineNextView = (state) => h('div', {},
-    state.data.concepts.length < 2 ? text('Not enough concepts!') : defineView(state, getNextRelationshipToDefine(state, getWeakestConceptId(state)))
-)
+    state.data.concepts.length < 2 ? text('Not enough concepts!') : defineView(state, getNextRelationshipToDefine(state)))
 
 let focusedRelationshipView = (state) => h('div', {}, (() => {
-    if(state.current.focusedRelationshipId === -1) return text('no focused relationship yet')
     let relationship = getRelationshipById(state, state.current.focusedRelationshipId)
-    console.log(relationship)
     let concept0 = getConceptById(state, relationship.memberIds[0])
     let concept1 = getConceptById(state, relationship.memberIds[1])
     return h('div', {}, [
@@ -312,7 +347,6 @@ let setFocusedRelationship = (state, relationshipId) => ({
 let focusedConceptView = (state) => {
     if(state.current.focusedConceptId === -1) return text('no focused concept yet')
     let concept = getConceptById(state, state.current.focusedConceptId)
-    if(concept === undefined) return text('no focused concept yet')
     return h('div', {}, [
         h('h1', {}, text('Relationships with: ')),
         h('ol', {}, concept.relationshipIds.map(rId => {
@@ -321,26 +355,64 @@ let focusedConceptView = (state) => {
                 relationship.memberIds[1] : relationship.memberIds[0]
             let otherConcept = getConceptById(state, otherConceptId)
             return h('li', {}, [
-                h('div', { onclick: [setFocusedRelationship, relationship.id]}, [
-                    text(otherConcept.conceptName),
-                    text('Confidence: ' + getRelationshipConfidence(state, relationship.id) + '%')
+                h('a', { href: '/relationship/' + relationship.id}, [
+                    h('div', {}, [
+                        text(otherConcept.conceptName),
+                        text('Confidence: ' + getRelationshipConfidence(state, relationship.id) + '%')
+                    ])
                 ])
             ])
         }))
     ])
 }
 
+let routes = {
+    '/': defineNextView,
+    '/importConcepts': importConceptsView,
+    '/conceptsList': conceptsListView,
+    '/relationship/:relationshipId': focusedRelationshipView,
+    '/concept/:conceptId':  focusedConceptView
+}
 
 let topView = (state) => h('div', {}, [
-    importConceptsView(state),
-    conceptsListView(state),
-    defineNextView(state),
-    focusedRelationshipView(state),
-    focusedConceptView(state)
+    h('ul', {}, [
+        h('a', { href: '/' }, text('Home')),
+        h('a', { href: '/importConcepts' }, text('Import some concepts')),
+        h('a', { href: '/conceptsList' }, text('Your concepts')),
+    ]),
+    routes[state.current.route](state)
 ])
+
+let pageJsHandler = (c, next) => {
+    dispatchEvent(new CustomEvent('pagejsroute', { detail: { c: c} }))
+}
+
+Object.keys(routes).forEach(route => router(route, pageJsHandler))
+router({hashbang: true})
+
+let changeRoute = (state, { route, params }) => ({
+    ...state,
+    current: {
+        ...state.current,
+        route: route,
+        focusedRelationshipId: params['relationshipId'] !== undefined ? parseInt(params['relationshipId']) : state.current.focusedConceptId,
+        focusedConceptId: params['conceptId'] !== undefined ? parseInt(params['conceptId']) : state.current.focusedConceptId,
+    }
+})
+
+let pagejsSubscriber = (dispatch, props) => {
+    let handler = (e) => {
+        dispatch(changeRoute, {route: e.detail.c.routePath, params: e.detail.c.params})
+    }
+    addEventListener('pagejsroute', handler)
+    return () => removeEventListener('pagejsroute', handler)
+} 
 
 app({
     init: initialstate,
     view: topView,
-    node: document.getElementById('app')
+    node: document.getElementById('app'),
+    subscriptions: () => [
+        [pagejsSubscriber, {}]
+    ]
 })
