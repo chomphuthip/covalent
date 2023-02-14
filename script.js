@@ -285,7 +285,9 @@ let defineView = (state, relationshipId) => h('div', {}, (() => {
             h('textarea', { 
                 name: 'definitionContent', 
                 id: 'defintionContent',
-                placeholder: 'New Definition...'
+                placeholder: 'New Definition...',
+                rows: 40,
+                columns: 40
             }, text('')),
             h('input', {
                 name: 'confidence',
