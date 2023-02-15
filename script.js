@@ -164,13 +164,19 @@ let importConcepts = (state, e) => {
         }, state)
 }
 
-let importConceptsView = (state) => h('div', {}, [
-    h('button', { onclick: importData }, text('Import Data From File')),
-    h('button', { onclick: exportData }, text('Export Data To File')),
-    h('form', {onsubmit: pDefaultCallback(importConcepts)}, [
-        h('label', {for: 'importField'}, text('Paste new concepts here:')),
-        h('textarea', {name: 'importField', id: 'importField', rows: 20}, text('')),
-        h('input', {type: 'submit'}, text('Import concepts'))
+let importConceptsView = (state) => h('div', {class: 'container is-fluid'}, [
+    h('div', {}, [
+        h('button', { onclick: importData, class:'button'}, text('Import Data From File')),
+        h('button', { onclick: exportData, class:'button'}, text('Export Data To File')),
+    ]),
+    h('div', {}, [
+        h('form', {onsubmit: pDefaultCallback(importConcepts)}, [
+            h('div', {class: 'field'}, [
+                h('label', {for: 'importField'}, text('Paste new concepts here:')),
+                h('textarea', {name: 'importField', id: 'importField', rows: 10, class: 'textarea'}, text('')),
+                h('input', {type: 'submit', class: 'button'}, text('Import concepts'))
+            ])
+        ])
     ])
 ])
 
@@ -244,17 +250,33 @@ let importDataEffector = (dispatch, props) => {
 }
 let importData = (state) => [state, [importDataEffector, {}]]
 
+let genUniq = (callback, id) => (state, e) => [callback, {id: id, e: e}]
 
-let conceptsListView = (state) => h('div', {},  [
-    text('Concepts'),
+let setPrio = (state, { id, e }) => ({
+    ...state,
+    data: {
+        ...state.data,
+        concepts: state.data.concepts.map(c => {
+            if(c.id !== id) return c
+            console.log(e)
+            return {...c, priority: e.target.value}
+        })
+    }
+})
+
+let conceptsListView = (state) => h('div', {class: 'container is-fluid'},  [
+    text('Concepts: '),
     h('ol', {}, [
         ...state.data.concepts.sort((a, b) => {
-            return getConceptConfidence(state, b.id) - getConceptConfidence(state, a.id)
-        }).map(concept => h('li', {onclick: [setFocusedConcept, concept.id]}, [
-            h('a', { href: fixRoute('./concept/') + concept.id}, [
-                text(concept.conceptName),
-            ]),
-            h('button', { onclick: [deleteConcept, { conceptId: concept.id }]}, text('Remove'))
+            return scoreConcept(state, b.id) - scoreConcept(state, a.id)
+        }).map(concept => h('li', {}, [
+            h('div', { class: 'conceptInList'}, [
+                h('a', { href: fixRoute('/concept/') + concept.id}, [
+                    text(concept.conceptName),
+                ]),
+                h('input', {onchange: genUniq(setPrio, concept.id), type: 'range', min: '1', max: '5', step: 1, value: concept.priority}, ),
+                h('button', { onclick: [deleteConcept, { conceptId: concept.id }], class: 'button'}, text('Remove'))
+            ])
         ]))
     ])
 ])
@@ -272,8 +294,7 @@ let addDefintionFromForm = (state, e) => {
     }), [resetContent, {e: e.target.firstChild}]]
 }
 
-let defineView = (state, relationshipId) => h('div', {
-}, (() => {
+let defineView = (state, relationshipId) => h('div', {}, (() => {
     let concept0 = getConceptById(state, getRelationshipById(state, relationshipId).memberIds[0])
     let concept1 = getConceptById(state, getRelationshipById(state, relationshipId).memberIds[1])
     return [
@@ -310,6 +331,7 @@ let defineView = (state, relationshipId) => h('div', {
             }, text('')),
             h('input', {
                 type: 'submit',
+                class: 'button'
             }, text('Submit New Definition'))
         ])
     ]
