@@ -381,8 +381,9 @@ let routes = {
     '/concept/:conceptId':  focusedConceptView
 }
 Object.keys(routes).forEach(route => { 
-    if(routes !== fixRoute(route)) return
+    if(routes === fixRoute(route)) return
     routes[fixRoute(route)] = routes[route]
+    delete routes[route]
 })
 
 let toggleHamburger = (state) => ({...state, current: {...state.current, hamburger: !state.current.hamburger}})
