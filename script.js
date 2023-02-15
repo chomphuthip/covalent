@@ -101,9 +101,12 @@ let getConceptConfidence = (state, conceptId) => {
     return total / concept.relationshipIds.length || 50
 }
 
+//higher score === less likely to pop up
+//picking order is lowest to highest scored
+//priority lowers score because itll put it down
 let scoreConcept = (state, conceptId) => {
     let concept = getConceptById(state, conceptId)
-    return 4 + concept.priority - concept
+    return 4 - (1.5 * concept.priority) + (0.1 * getConceptConfidence(state, concept.id))
 }
 
 let getNewestDefintionId = (state, relationshipId) => {
@@ -124,9 +127,13 @@ let getMostNeglectedRelationship = (state, conceptId) => {
 }
 
 let getNextRelationshipToDefine = (state) => {
+    console.log(
+    state.data.concepts.map(concept => [scoreConcept(state, concept.id), concept.id])
+        .sort((tupleA, tupleB) => tupleA[0] - tupleB[0])
+    )
     return getMostNeglectedRelationship(state,
     state.data.concepts.map(concept => [scoreConcept(state, concept.id), concept.id])
-        .sort((tupleA, tupleB) => tupleB[0] - tupleA[0])
+        .sort((tupleA, tupleB) => tupleA[0] - tupleB[0])
         .find(tuple => !state.current.recentlyDefined.includes(tuple[1]))[1])
 }
 
