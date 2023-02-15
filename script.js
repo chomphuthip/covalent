@@ -1,6 +1,8 @@
 import { h, app, text } from 'https://unpkg.com/hyperapp'
 import router from 'https://unpkg.com/page/page.mjs'
 
+let fixRoute = (route) => (window.location.pathname === '/' ? '' : window.location.pathname) + route
+
 let createConceptInstance = (conceptName, conceptId) => ({
     id: conceptId,
     priority: 3,
@@ -131,10 +133,11 @@ let getNextRelationshipToDefine = (state) => {
 
 let initialstate = {
     current: {
-        route: '/',
+        route: fixRoute('/'),
         focusedRelationshipId: -1,
         focusedConceptId: -1,
-        recentlyDefined: []
+        hamburger: false,
+        recentlyDefined: [],
     },
     data: {
         ids: {
@@ -248,7 +251,7 @@ let conceptsListView = (state) => h('div', {},  [
         ...state.data.concepts.sort((a, b) => {
             return getConceptConfidence(state, b.id) - getConceptConfidence(state, a.id)
         }).map(concept => h('li', {onclick: [setFocusedConcept, concept.id]}, [
-            h('a', { href: '/concept/' + concept.id}, [
+            h('a', { href: fixRoute('./concept/') + concept.id}, [
                 text(concept.conceptName),
             ]),
             h('button', { onclick: [deleteConcept, { conceptId: concept.id }]}, text('Remove'))
@@ -269,11 +272,12 @@ let addDefintionFromForm = (state, e) => {
     }), [resetContent, {e: e.target.firstChild}]]
 }
 
-let defineView = (state, relationshipId) => h('div', {}, (() => {
+let defineView = (state, relationshipId) => h('div', {
+}, (() => {
     let concept0 = getConceptById(state, getRelationshipById(state, relationshipId).memberIds[0])
     let concept1 = getConceptById(state, getRelationshipById(state, relationshipId).memberIds[1])
     return [
-        h('h1', {}, 
+        h('h1', { class: 'title' }, 
             text('Define the relationship between ' + 
                 concept0.conceptName +
                 ' and ' +
@@ -284,9 +288,10 @@ let defineView = (state, relationshipId) => h('div', {}, (() => {
         }, [
             h('textarea', { 
                 name: 'definitionContent', 
+                class: 'textarea',
                 id: 'defintionContent',
                 placeholder: 'New Definition...',
-                rows: 30,
+                rows: 10,
                 cols: 100
             }, text('')),
             h('input', {
@@ -310,7 +315,7 @@ let defineView = (state, relationshipId) => h('div', {}, (() => {
     ]
 })())
 
-let defineNextView = (state) => h('div', {},
+let defineNextView = (state) => h('div', {class: 'container is-fluid'},
     state.data.concepts.length < 2 ? text('Not enough concepts!') : defineView(state, getNextRelationshipToDefine(state)))
 
 let focusedRelationshipView = (state) => h('div', {}, (() => {
@@ -357,7 +362,7 @@ let focusedConceptView = (state) => {
                 relationship.memberIds[1] : relationship.memberIds[0]
             let otherConcept = getConceptById(state, otherConceptId)
             return h('li', {}, [
-                h('a', { href: '/relationship/' + relationship.id}, [
+                h('a', { href: fixRoute('/relationship/') + relationship.id}, [
                     h('div', {}, [
                         text(otherConcept.conceptName),
                         text('Confidence: ' + getRelationshipConfidence(state, relationship.id) + '%')
@@ -375,12 +380,53 @@ let routes = {
     '/relationship/:relationshipId': focusedRelationshipView,
     '/concept/:conceptId':  focusedConceptView
 }
+Object.keys(routes).forEach(route => { 
+    if(routes !== fixRoute(route)) return
+    routes[fixRoute(route)] = routes[route]
+})
+
+let toggleHamburger = (state) => ({...state, current: {...state.current, hamburger: !state.current.hamburger}})
 
 let topView = (state) => h('div', {}, [
-    h('ul', {}, [
-        h('a', { href: './' }, text('Home')),
-        h('a', { href: './importConcepts' }, text('Import some concepts')),
-        h('a', { href: './conceptsList' }, text('Your concepts')),
+    h('nav', {
+        class: 'navbar', 
+        role: 'navigation',
+        'aria-label': 'main navigation'
+    }, [
+        h('div', { class: 'navbar-brand' }, [
+            h('a', {
+                role: 'button',
+                class: 'navbar-burger ' + (state.current.hamburger === true ? 'is-active' : ''),
+                'aria-label': 'menu',
+                'data-target': 'topNavMenu',
+                onclick: toggleHamburger
+            }, [
+                h('span', { 'aria-hidden': 'true' }, text('')),
+                h('span', { 'aria-hidden': 'true' }, text('')),
+                h('span', { 'aria-hidden': 'true' }, text('')),
+            ])
+        ]),
+        h('div', { 
+            class:'navbar-menu ' + (state.current.hamburger === true ? 'is-active' : ''),
+            id:'topNavMenu'
+         }, [
+            h('div', { 
+                class:'navbar-start', 
+            }, [
+                h('a', { 
+                    href: fixRoute('/'), 
+                    class: 'navbar-item'
+                }, text('Home')),
+                h('a', { 
+                    href: fixRoute('/importConcepts'),
+                    class: 'navbar-item'
+                }, text('Import some concepts')),
+                h('a', { 
+                    href: fixRoute('/conceptsList'),
+                    class: 'navbar-item'
+                }, text('Your concepts')),
+            ])
+        ]),
     ]),
     routes[state.current.route](state)
 ])
@@ -408,7 +454,7 @@ let pagejsSubscriber = (dispatch, props) => {
     }
     addEventListener('pagejsroute', handler)
     return () => removeEventListener('pagejsroute', handler)
-} 
+}
 
 app({
     init: initialstate,
