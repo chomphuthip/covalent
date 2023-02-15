@@ -381,7 +381,7 @@ let routes = {
     '/concept/:conceptId':  focusedConceptView
 }
 Object.keys(routes).forEach(route => { 
-    if(routes === fixRoute(route)) return
+    if(route === fixRoute(route)) return
     routes[fixRoute(route)] = routes[route]
     delete routes[route]
 })
