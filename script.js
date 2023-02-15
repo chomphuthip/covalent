@@ -378,9 +378,9 @@ let routes = {
 
 let topView = (state) => h('div', {}, [
     h('ul', {}, [
-        h('a', { href: '/' }, text('Home')),
-        h('a', { href: '/importConcepts' }, text('Import some concepts')),
-        h('a', { href: '/conceptsList' }, text('Your concepts')),
+        h('a', { href: './' }, text('Home')),
+        h('a', { href: './importConcepts' }, text('Import some concepts')),
+        h('a', { href: './conceptsList' }, text('Your concepts')),
     ]),
     routes[state.current.route](state)
 ])
