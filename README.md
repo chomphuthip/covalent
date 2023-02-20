@@ -1,2 +1,2 @@
 # covalent
-An experimental learning tool.
+An experimental studying tool.
